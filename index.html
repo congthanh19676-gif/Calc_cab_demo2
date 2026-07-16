@@ -281,19 +281,20 @@
     <div class="section-container">
         <h3>🎯 3. Ràng buộc thông số (chọn thông số muốn giữ dưới đây):</h3>
         <p style="font-size:14px; color: #475569;">Tích chọn vào mục tương ứng để áp đặt ràng buộc thiết kế cố định.</p>
-        <div class="grid-3">
-            <div class="form-group">
-                <label><input type="checkbox" id="fix_num_cables" checked onchange="toggleConstraint()"> 📌 Số mạch song song</label>
-                <input type="number" id="fixed_num_val" value="1" min="1" onchange="updateDynamicK()">
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="fix_area" onchange="toggleConstraint()"> 📐 Tiết diện cáp</label>
-                <select id="fixed_area_val" disabled></select>
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="fix_deltaV"> 📉 Ràng buộc nghiêm ngặt % Sụt áp</label>
-            </div>
-        </div>
+		<div class="grid-3">
+			<div class="form-group">
+				<label><input type="checkbox" id="fix_num_cables" checked onchange="toggleConstraint()"> 📌 Số mạch song song</label>
+				<!-- THAY ĐỔI: Chuyển từ input number sang select dropdown -->
+				<select id="fixed_num_val" onchange="updateDynamicK()" style="font-weight: bold; border: 2px solid #0066CC;"></select>
+			</div>
+			<div class="form-group">
+				<label><input type="checkbox" id="fix_area" onchange="toggleConstraint()"> 📐 Tiết diện cáp</label>
+				<select id="fixed_area_val" disabled></select>
+			</div>
+			<div class="form-group">
+				<label><input type="checkbox" id="fix_deltaV"> 📉 Ràng buộc nghiêm ngặt % Sụt áp</label>
+			</div>
+		</div>
         
         <hr style="border: 0.5px solid #E2E8F0; margin: 15px 0;">
         <h3>🔌 4. Cấu hình Trạm biến áp</h3>
@@ -473,6 +474,9 @@ window.onload = function() {
     
     initDictionariesToDOM();
     updateSystemRelated(); 
+    
+    // THÊM DÒNG NÀY VÀO ĐÂY: Khởi tạo danh sách số mạch song song lần đầu tiên
+    updateCircuitDropdown(); 
 }
 
 function openModal() {
@@ -696,7 +700,11 @@ function computeK(n) {
     }
 }
 
+/* ================= HÀM ĐÃ SỬA CHUẨN: KHÔNG CÒN BỊ LỒNG HÀM TRÙNG LẶP ================= */
 function updateDynamicK() {
+    // Luôn cập nhật lại danh sách Dropdown số mạch mỗi khi cấu hình lắp đặt thay đổi
+    updateCircuitDropdown(); 
+
     let fixN = document.getElementById("fix_num_cables").checked;
     let ref_n = fixN ? parseInt(document.getElementById("fixed_num_val").value) : 1;
     let K = computeK(ref_n);
@@ -731,6 +739,132 @@ function calcNeutral(area, num, condType, sysType) {
     return { n: bestN, a: bestA };
 }
 
+/* ================= 1. HÀM QUY ĐỊNH CHÍNH XÁC SỐ MẠCH ĐƯỢC PHÉP THEO TỪNG BẢNG ================= */
+function getAllowedCircuitCounts() {
+    let routing = document.getElementById("cable_routing").value;
+    if (routing === "Đi trên không/thang máng") {
+        let coreType = document.getElementById("air_cable_core_type").value;
+        let spacing = document.getElementById("air_spacing_type").value;
+        let src = document.getElementById("air_table_source").value;
+        let method = document.getElementById("air_arr").value;
+        let trays = parseInt(document.getElementById("air_num_trays").value) || 1;
+
+        if (coreType === "singlecore") {
+            let methodObj = table_B52_21[method];
+            if (methodObj && methodObj.data[trays]) {
+                // Chỉ lấy các cột số mạch có dữ liệu thực tế (khác null) trong bảng B.52.21
+                return Object.keys(methodObj.data[trays]).map(Number).filter(k => methodObj.data[trays][k] !== null);
+            }
+            return [1, 2, 3]; // Mặc định chuẩn B.52.21 chỉ tối đa 3 mạch
+        } else {
+            if (spacing === "sat" && src === "old") {
+                let list = reduction_factors_air[method] || [];
+                return Array.from({length: list.length}, (_, i) => i + 1);
+            } else {
+                let methodObj = table_B52_20[method];
+                if (methodObj && methodObj.data[trays]) {
+                    // Lấy chính xác các cột chuẩn B.52.20: [1, 2, 3, 4, 6, 9] (loại bỏ các số như 5, 7, 8...)
+                    return Object.keys(methodObj.data[trays]).map(Number).filter(k => methodObj.data[trays][k] !== null);
+                }
+                return [1, 2, 3, 4, 6, 9];
+            }
+        }
+    } else {
+        let method = document.getElementById("ground_arr").value;
+        let list = k4_ground_grouping_factors[method] || [];
+        return Array.from({length: list.length}, (_, i) => i + 1);
+    }
+}
+
+/* ================= HÀM TỰ ĐỘNG CẬP NHẬT DROPDOWN SỐ MẠCH THEO GIỚI HẠN BẢNG ================= */
+function updateCircuitDropdown() {
+    let selectEl = document.getElementById("fixed_num_val");
+    if (!selectEl) return;
+
+    // Lấy danh sách số mạch hợp lệ từ hàm getAllowedCircuitCounts() (Ví dụ: [1, 2, 3] hoặc [1, 2, 3, 4, 6, 9])
+    let allowed = getAllowedCircuitCounts(); 
+    
+    // Kiểm tra xem danh sách hiện tại trong dropdown có giống danh sách mới không
+    let currentOptions = Array.from(selectEl.options).map(opt => parseInt(opt.value));
+    let isSame = allowed.length === currentOptions.length && allowed.every((val, i) => val === currentOptions[i]);
+    
+    if (isSame) return; // Nếu danh sách không đổi thì giữ nguyên, tránh làm reset lựa chọn của người dùng
+
+    // Lưu lại giá trị người dùng đang chọn trước khi cập nhật
+    let currentVal = parseInt(selectEl.value) || 1;
+
+    // Xóa các option cũ và tạo lại danh sách option mới
+    selectEl.innerHTML = "";
+    allowed.forEach(num => {
+        selectEl.add(new Option(`${num} mạch song song`, num));
+    });
+
+    // Nếu số mạch người dùng đang chọn trước đó vẫn nằm trong danh sách mới thì giữ nguyên lựa chọn
+    // Nếu không (ví dụ đang chọn 6 mạch mà đổi sang bảng B.52.21 chỉ cho tối đa 3 mạch), tự động về 1 mạch
+    if (allowed.includes(currentVal)) {
+        selectEl.value = currentVal;
+    } else {
+        selectEl.selectedIndex = 0;
+    }
+}
+
+/* ================= 2. CHUẨN HÓA HÀM TRA BẢNG (CHỈ CHẤP NHẬN SỐ MẠCH CÓ TRONG BẢNG) ================= */
+function getK4_B52_20(methodName, numTrays, numCables) {
+    const methodObj = table_B52_20[methodName];
+    if (!methodObj || !methodObj.data[numTrays]) return 0;
+    const val = methodObj.data[numTrays][numCables];
+    // STRICT: Nếu bảng không có cột số mạch này (vd n=5), trả về 0 để loại bỏ hoàn toàn cấu hình này
+    return (val !== undefined && val !== null) ? val : 0; 
+}
+
+function getK4_B52_21(methodName, numTrays, numCables) {
+    const methodObj = table_B52_21[methodName];
+    if (!methodObj || !methodObj.data[numTrays]) return 0;
+    const val = methodObj.data[numTrays][numCables];
+    // STRICT: Nếu bảng không có cột số mạch này (vd n=4, 5, 6...), trả về 0
+    return (val !== undefined && val !== null) ? val : 0; 
+}
+
+/* ================= 3. CẬP NHẬT HÀM COMPUTE_K ĐỂ CHẶN VƯỢT GIỚI HẠN MẠNG BẢNG CŨ ================= */
+function computeK(n) {
+    let routing = document.getElementById("cable_routing").value;
+    let insul = document.getElementById("insul_material").value;
+    if (routing === "Đi trên không/thang máng") {
+        let coreType = document.getElementById("air_cable_core_type").value;
+        let spacing = document.getElementById("air_spacing_type").value;
+        let src = document.getElementById("air_table_source").value;
+        let k4 = 0;
+        
+        if (coreType === "singlecore") {
+            let method = document.getElementById("air_arr").value;
+            let trays = parseInt(document.getElementById("air_num_trays").value) || 1;
+            k4 = getK4_B52_21(method, trays, n);
+        } else {
+            if (spacing === "sat" && src === "old") {
+                let list = reduction_factors_air[document.getElementById("air_arr").value] || [];
+                if (n > list.length || n < 1) return 0; // Chặt chẽ: vượt quá số cột của mảng là loại
+                k4 = list[n - 1];
+            } else {
+                let method = document.getElementById("air_arr").value;
+                let trays = parseInt(document.getElementById("air_num_trays").value) || 1;
+                k4 = getK4_B52_20(method, trays, n);
+            }
+        }
+        if (k4 <= 0) return 0;
+        let k1 = k1_factors[insul][parseInt(document.getElementById("air_temp").value)] || 1.0;
+        return k1 * k4;
+    } else {
+        let list = k4_ground_grouping_factors[document.getElementById("ground_arr").value] || [];
+        if (n > list.length || n < 1) return 0; // Chặt chẽ: chôn ngầm vượt quá số cột là loại
+        let k4 = list[n - 1];
+        let k1 = k1_temperature_ground_factors[insul][parseInt(document.getElementById("ground_temp").value)] || 1.0;
+        let k2 = k2_soil_thermal_factors[document.getElementById("soil_type").value] || 1.0;
+        let k3 = k3_depth_factors[document.getElementById("depth_type").value] || 1.0;
+        return k1 * k2 * k3 * k4;
+    }
+}
+
+/* ================= 4. CẬP NHẬT HÀM RUN_CALCULATION ĐỂ CHỈ QUYÉT CÁC SỐ MẠCH HỢP LỆ ================= */
 function runCalculation() {
     document.getElementById("result_zone").style.display = "block";
     let err = document.getElementById("error_msg"); let content = document.getElementById("success_content");
@@ -783,13 +917,24 @@ function runCalculation() {
     let fixN = document.getElementById("fix_num_cables").checked;
     let fixA = document.getElementById("fix_area").checked;
     let fixV = document.getElementById("fix_deltaV").checked;
-    let search_num = fixN ? [parseInt(document.getElementById("fixed_num_val").value)] : Array.from({length: 12}, (_, i) => i + 1);
-    let search_area = fixA ? [parseFloat(document.getElementById("fixed_area_val").value)] : standard_sizes;
+    
+    // THAY ĐỔI QUAN TRỌNG: Lấy chính xác danh sách số mạch hợp lệ theo tiêu chuẩn
+    let allowed_circuits = getAllowedCircuitCounts();
+    let search_num = fixN ? [parseInt(document.getElementById("fixed_num_val").value)] : allowed_circuits;
 
+    // Kiểm tra ràng buộc: Nếu người dùng cố tình nhập số mạch cố định không nằm trong bảng tra tiêu chuẩn
+    if (fixN && !allowed_circuits.includes(search_num[0])) {
+        err.innerHTML = `❌ <b>VI PHẠM TIÊU CHUẨN LẮP ĐẶT:</b> Phương thức lắp đặt / Gom nhóm đang chọn chỉ áp dụng bảng tra cho số mạch song song là: <b>[ ${allowed_circuits.join(", ")} ] mạch</b>. Vui lòng bỏ tích chọn cố định mạch hoặc chọn số mạch hợp lệ theo bảng tra!`;
+        err.style.display = "block";
+        return;
+    }
+
+    let search_area = fixA ? [parseFloat(document.getElementById("fixed_area_val").value)] : standard_sizes;
     let valids = []; let r_phys = cond==="Copper"?res_cu:res_al;
 
     for(let n of search_num) {
-        let K_n = computeK(n); if(K_n <= 0) continue;
+        let K_n = computeK(n); 
+        if(K_n <= 0) continue; // Bỏ qua ngay các mạch không hợp lệ hoặc K4 = 0
         for(let a of search_area) {
             if(table[a] && table[a][methodKey]) {
                let amp = table[a][methodKey]; let Iz = amp * K_n; let Izt = Iz * n;
@@ -805,7 +950,9 @@ function runCalculation() {
     }
 
     if(valids.length === 0) {
-        err.innerHTML = "❌ Không tìm thấy cáp thỏa mãn điều kiện."; err.style.display="block"; return;
+        err.innerHTML = `❌ Không tìm thấy cáp thỏa mãn điều kiện tải (${Itt_chon_cap.toFixed(1)} A) trong phạm vi số mạch hợp lệ <b>[ ${allowed_circuits.join(", ")} ] mạch</b> của tiêu chuẩn. Hãy thử thay đổi phương thức lắp đặt, nâng cấp kích thước máng/thang hoặc chuyển sang dẫn bằng Busway!`; 
+        err.style.display="block"; 
+        return;
     }
 
     valids.sort((x,y) => x.tot !== y.tot ? x.tot - y.tot : (x.n !== y.n ? x.n - y.n : x.a - y.a));
