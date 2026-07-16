@@ -1166,22 +1166,49 @@ async function generatePDF() {
     }
 }
 
-/* ================= HÀM XUẤT THUYẾT MINH CHI TIẾT (CHUẨN HÓA SIÊU CHI TIẾT TỪ DEMO 01) ================= */
+// ============================================================================
+// HÀM XUẤT THUYẾT MINH TÍNH TOÁN (ĐÃ FIX LỖI SAI SỐ LÀM TRÒN DÒNG TRA BẢNG)
+// ============================================================================
 function exportExplanation() {
-    if(!currentResult) { alert("Vui lòng chạy tính toán trước khi xuất thuyết minh!"); return; }
+    if(!currentResult) {
+        alert("Vui lòng chạy tính toán trước khi xuất thuyết minh!");
+        return;
+    }
+
+    // ------------------------------------------------------------------------
+    // CÔNG TẮC BẢO MẬT (Đang tắt - để 'false'. Đổi thành 'true' để bật lại sau này)
+    // ------------------------------------------------------------------------
+    const IS_PASSWORD_ENABLED = false; 
+    const PASSWORD_PROTECT = "ThanhPro"; 
+    
+    if (IS_PASSWORD_ENABLED) {
+        let userPassword = prompt("Vui lòng nhập mật khẩu để xuất Thuyết minh tính toán chi tiết:");
+        if (userPassword === null) return; 
+        if (userPassword !== PASSWORD_PROTECT) {
+            alert("🔒 Mật khẩu không chính xác! Bạn không có quyền xuất tài liệu này.");
+            return;
+        }
+    }
     
     let newWin = window.open("", "_blank");
-    if (!newWin) { alert("⚠️ Trình duyệt chặn Popup. Hãy cho phép mở tab mới và thử lại!"); return; }
+    if (!newWin) {
+        alert("⚠️ Trình duyệt của bạn đã chặn tự động mở Tab mới (Popup Blocker).\n\n👉 CÁCH KHẮC PHỤC: Hãy click vào biểu tượng ❌ màu đỏ trên thanh địa chỉ, chọn 'Luôn cho phép' và thử lại!");
+        return;
+    }
 
-    let sys = currentResult.sysType; let U = sys === "3 pha" ? 400 : 230; let is3Phase = sys === "3 pha";
-    let loadStr = currentResult.loadStr; let s_ba = parseFloat(document.getElementById("s_ba").value);
-    let u_k = parseFloat(document.getElementById("u_k").value);
+    let sys = currentResult.sysType; 
+    let U = sys === "3 pha" ? 400 : 230; 
+    let is3Phase = sys === "3 pha";
+    let loadStr = currentResult.loadStr; 
+    let s_ba = parseFloat(document.getElementById("s_ba").value) || 1000;
+    let u_k = parseFloat(document.getElementById("u_k").value) || 6.0;
     let isAir = currentResult.routing === "Đi trên không/thang máng";
     
-    let k_du_tru_val = parseFloat(document.getElementById("k_du_tru").value);
+    let k_du_tru_val = parseFloat(document.getElementById("k_du_tru").value) || 1.0;
     let hasReserve = k_du_tru_val > 1.0;
     let inputSummaryReserveHTML = hasReserve ? `<li><b>Hệ số dự trữ phát triển tải (k<sub>dự trữ</sub>):</b> ${k_du_tru_val.toFixed(2)}</li>` : "";
-    let I_co_so = parseFloat(currentResult.Itt_cb).toFixed(2); let I_thiet_ke = (parseFloat(currentResult.Itt_cb) * k_du_tru_val).toFixed(2);
+    let I_co_so = parseFloat(currentResult.Itt_cb).toFixed(2); 
+    let I_thiet_ke = (parseFloat(currentResult.Itt_cb) * k_du_tru_val).toFixed(2);
 
     let formulaHTML = ""; let explanationText = ""; let i_target = "I<sub>cơ_sở</sub>";
     if (loadStr.includes("kW")) {
@@ -1191,7 +1218,8 @@ function exportExplanation() {
         formulaHTML = is3Phase ? `${i_target} = (S × 1000) / (√3 × U)` : `${i_target} = (S × 1000) / U`;
         explanationText = "Đầu vào được khai báo là Công suất biểu kiến S (kVA). Dòng điện tính toán được quy đổi trực tiếp từ S.";
     } else {
-        formulaHTML = `${i_target} = I<sub>khai_báo</sub>`; explanationText = "Đầu vào được khai báo trực tiếp bằng dòng điện I (A). Giá trị tính toán sử dụng chính giá trị dòng điện đã nhập.";
+        formulaHTML = `${i_target} = I<sub>khai_báo</sub>`; 
+        explanationText = "Đầu vào được khai báo trực tiếp bằng dòng điện I (A). Giá trị tính toán sử dụng chính giá trị dòng điện đã nhập.";
     }
 
     let loadCalculationHTML = hasReserve ? `
@@ -1206,18 +1234,23 @@ function exportExplanation() {
 
     let k2_text = isAir ? "1.0 <i>(Chỉ áp dụng đối với trường hợp cáp đi chôn ngầm trong đất)</i>" : `<b>${currentResult.soil_factor}</b> <span style="color:#2563EB;"><i>(Tra tại Bảng 2 Phụ lục)</i></span>`;
     let k3_text = isAir ? "1.0 <i>(Chỉ áp dụng đối với trường hợp cáp đi chôn ngầm trong đất)</i>" : `<b>${currentResult.depth_factor}</b> <span style="color:#2563EB;"><i>(Tra tại Bảng 3 Phụ lục)</i></span>`;
-    let envTemp = parseInt(isAir ? document.getElementById("air_temp").value : document.getElementById("ground_temp").value);
+    let envTemp = parseInt(isAir ? document.getElementById("air_temp").value : document.getElementById("ground_temp").value) || 30;
     
-    let phase_n = parseInt(currentResult.phase_cable.split('x')[0]); let phase_a = parseFloat(currentResult.phase_cable.split('x')[1]);
-    let neut_n = parseInt(currentResult.n_cable.split('x')[0]); let neut_a = parseFloat(currentResult.n_cable.split('x')[1]);
+    let phase_n = parseInt(currentResult.phase_cable.split('x')[0]); 
+    let phase_a = parseFloat(currentResult.phase_cable.split('x')[1]);
+    let neut_n = parseInt(currentResult.n_cable.split('x')[0]); 
+    let neut_a = parseFloat(currentResult.n_cable.split('x')[1]);
     
     let cable_table_ref = isAir ? (currentResult.cond === "Copper" ? cab_cu_air : cab_al_air) : 
                           (currentResult.routing.includes("trực tiếp") ? (currentResult.cond === "Copper" ? cu_ground_direct : al_ground_direct) : (currentResult.cond === "Copper" ? cu_ground_pipe : al_ground_pipe));
-    let exact_amp = cable_table_ref[phase_a][currentResult.methodKey];
+    
+    // Sử dụng Optional Chaining (?.) để tránh lỗi ngầm nếu không tìm thấy dữ liệu bảng tra
+    let exact_amp = cable_table_ref[phase_a]?.[currentResult.methodKey] || currentResult.amp || "-";
 
     let R0_phase = currentResult.cond === "Copper" ? (res_cu[phase_a] || 0.01) : (res_al[phase_a] || 0.01);
     let R0_neut = currentResult.cond === "Copper" ? (res_cu[neut_a] || 0.01) : (res_al[neut_a] || 0.01);
-    let L = parseFloat(currentResult.length); let alpha = currentResult.cond === "Copper" ? 0.00393 : 0.00403;
+    let L = parseFloat(currentResult.length); 
+    let alpha = currentResult.cond === "Copper" ? 0.00393 : 0.00403;
     let t_fixed = parseFloat(currentResult.t_fixed);
 
     let Rp = (R0_phase / 1000.0) * L / phase_n; let Xp = (0.08 / 1000.0) * L / phase_n;
@@ -1265,7 +1298,7 @@ function exportExplanation() {
     ["PVC", "XLPE/EPR"].forEach(ins => {
         appendixTablesHTML += `<tr><td style="border: 1px solid #000; padding: 6px; font-weight: bold;">${ins}</td>`;
         k1_temps.forEach(t => {
-            let val = k1_obj[ins][t] !== undefined ? k1_obj[ins][t].toFixed(2) : "-";
+            let val = k1_obj[ins]?.[t] !== undefined ? k1_obj[ins][t].toFixed(2) : "-";
             let isHighlight = (ins === currentResult.insul && t === envTemp);
             let bg = isHighlight ? "background-color: #ffcccc; font-weight: bold; color: red;" : "";
             appendixTablesHTML += `<td style="border: 1px solid #000; padding: 6px; ${bg}">${val}</td>`;
@@ -1292,7 +1325,6 @@ function exportExplanation() {
         appendixTablesHTML += `</table></div></div>`;
     }
 
-    // VẼ BẢNG K4: B.52.21 vs B.52.20 vs Bảng cũ
     if (isAir && currentResult.is_air_b52_21) {
         appendixTablesHTML += `
         <h3>[Bảng 2] Hệ số K4 - Suy giảm dòng theo Bảng B.52.21 đối với Cáp 1 lõi (TCVN 7447-5-52 / IEC 60364-5-52)</h3>
@@ -1310,7 +1342,7 @@ function exportExplanation() {
                 if (idx === 0) appendixTablesHTML += `<td rowspan="${traysList.length}" style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold; vertical-align: middle;">${methodName}</td>`;
                 appendixTablesHTML += `<td style="border: 1px solid #000; padding: 6px;">${t}</td>`;
                 [1, 2, 3].forEach(c => {
-                    let val = obj.data[t][c] !== undefined && obj.data[t][c] !== null ? obj.data[t][c].toFixed(2) : "—";
+                    let val = obj.data[t]?.[c] !== undefined && obj.data[t]?.[c] !== null ? obj.data[t][c].toFixed(2) : "—";
                     let isHighlight = (methodName === currentResult.air_method_selected && t === currentResult.air_trays_selected && c === Math.min(3, phase_n));
                     let bg = isHighlight ? "background-color: #ffcccc; font-weight: bold; color: red;" : "";
                     appendixTablesHTML += `<td style="border: 1px solid #000; padding: 6px; ${bg}">${val}</td>`;
@@ -1337,7 +1369,7 @@ function exportExplanation() {
                 if (idx === 0) appendixTablesHTML += `<td rowspan="${traysList.length}" style="border: 1px solid #000; padding: 6px; text-align: left; font-weight: bold; vertical-align: middle;">${methodName}</td>`;
                 appendixTablesHTML += `<td style="border: 1px solid #000; padding: 6px;">${t}</td>`;
                 [1, 2, 3, 4, 6, 9].forEach(c => {
-                    let val = obj.data[t][c] !== undefined && obj.data[t][c] !== null ? obj.data[t][c].toFixed(2) : "—";
+                    let val = obj.data[t]?.[c] !== undefined && obj.data[t]?.[c] !== null ? obj.data[t][c].toFixed(2) : "—";
                     let isHighlight = (methodName === currentResult.air_method_selected && t === currentResult.air_trays_selected && c === phase_n);
                     let bg = isHighlight ? "background-color: #ffcccc; font-weight: bold; color: red;" : "";
                     appendixTablesHTML += `<td style="border: 1px solid #000; padding: 6px; ${bg}">${val}</td>`;
@@ -1369,7 +1401,6 @@ function exportExplanation() {
         appendixTablesHTML += `</table>`;
     }
 
-    // Bảng 3/5: Dòng tải gốc cáp (Có viền ĐỎ chuẩn Demo 01)
     let available_sizes = currentResult.cond === "Copper" ? Object.keys(res_cu) : Object.keys(res_al);
     available_sizes.sort((a, b) => parseFloat(a) - parseFloat(b));
     let all_methods = new Set(); Object.values(cable_table_ref).forEach(obj => Object.keys(obj).forEach(k => all_methods.add(k)));
@@ -1517,7 +1548,7 @@ function exportExplanation() {
         <div class="formula">R<sub>t</sub> = R<sub>0</sub> × [1 + α × (θ<sub>f</sub> - 20)]</div>
         <ul>
             <li><b>R<sub>0</sub></b>: Điện trở của lõi ${currentResult.cond === 'Copper' ? 'Đồng (Cu)' : 'Nhôm (Al)'} tiết diện ${phase_a} mm² tại 20°C = <b>${R0_phase} Ω/km</b> <span style="color:#2563EB;"><i>(Tra tại Bảng ${isAir ? "3" : "5"} Phụ lục)</i></span>.</li>
-            <li><b>α</b>: Hệ số nhiệt điện trở của ${cond === 'Copper' ? 'Đồng (Cu) là 0.00393' : 'Nhôm (Al) là 0.00403'} K<sup>-1</sup>.</li>
+            <li><b>α</b>: Hệ số nhiệt điện trở của ${currentResult.cond === 'Copper' ? 'Đồng (Cu) là 0.00393' : 'Nhôm (Al) là 0.00403'} K<sup>-1</sup>.</li>
             <li><b>θ<sub>f</sub></b>: Nhiệt độ cực đại của cách điện ${currentResult.insul} = ${t_fixed}°C.</li>
         </ul>
         <p>➔ Thay số ta được: <b>R<sub>t</sub> = ${currentResult.rt_val} Ω/km</b>.</p>
@@ -1598,7 +1629,7 @@ function exportExplanation() {
         </div>
         <p>Trong đó:</p>
         <ul>
-            <li>K = ${k_mat}, β = ${beta} (Hệ số đối với vật liệu dẫn ${cond === "Copper" ? "Đồng Cu" : "Nhôm Al"}).</li>
+            <li>K = ${k_mat}, β = ${beta} (Hệ số đối với vật liệu dẫn ${currentResult.cond === "Copper" ? "Đồng Cu" : "Nhôm Al"}).</li>
             <li>S = ${phase_a} mm² (Tiết diện của 1 sợi cáp).</li>
             <li>t = ${t_sc} s (Thời gian chịu dòng ngắn mạch).</li>
             <li>θ<sub>i</sub> = ${theta_i}°C (Nhiệt độ hoạt động ban đầu trước khi ngắn mạch của cách điện ${currentResult.insul}).</li>
@@ -1630,7 +1661,14 @@ function exportExplanation() {
         <p style="text-align: right; font-style: italic;">---- Hết tài liệu thuyết minh ----</p>
     </body>
     </html>`;
-    newWin.document.write(htmlContent); newWin.document.close();
+
+    // 2. Mở luồng ghi, chèn HTML và đóng luồng (Bắt buộc phải đủ 3 bước này)
+    newWin.document.open();
+    newWin.document.write(htmlContent); 
+    newWin.document.close();
+    
+    // 3. Đưa cửa sổ báo cáo ra phía trước màn hình
+    newWin.focus();
 }
 </script>
 </body>
