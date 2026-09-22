@@ -1764,8 +1764,6 @@ function exportExplanation() {
             <b>CẤU HÌNH CB ĐỀ XUẤT:</b><br><br>
             • Chọn dòng định mức (I<sub>n</sub>) là: <b>${sel_In} A</b>.<br>
             ${sel_k < 1.0 ? `• Áp dụng chỉnh định hệ số k = <b>${sel_k}</b> ➔ Dòng bảo vệ nhiệt thực tế <b>I<sub>r</sub> = ${sel_Ir.toFixed(2)} A</b><br>
-            <i>(Phù hợp vì I<sub>cơ_sở</sub> ${I_co_so} A ≤ I<sub>r</sub> ${sel_Ir.toFixed(2)} A ≤ I<sub>z</sub> ${currentResult.Iz_total} A)</i>.<br>` : `• Dòng bảo vệ nhiệt (I<sub>r</sub> = I<sub>n</sub>): <b>${sel_In} A</b><br>
-            <i>(Phù hợp vì I<sub>cơ_sở</sub> ${I_co_so} A ≤ I<sub>r</sub> ${sel_In} A ≤ I<sub>z</sub> ${currentResult.Iz_total} A)</i>.<br>`}
             • Chọn khả năng cắt ngắn mạch tối thiểu (I<sub>cu</sub>) là: <b>${currentResult.cb_Icu} kA</b>.
         </div>
 
